@@ -150,6 +150,47 @@ animations = [{
 "speed": 8.0
 }]
 
+[sub_resource type="Gradient" id="Gradient_yw3xw"]
+offsets = PackedFloat32Array(0.054545455, 0.21818182, 0.37818182, 0.61454546, 0.8, 1)
+colors = PackedColorArray(0.63375676, 0.6337568, 0.63375676, 1, 0.3183472, 0.32642287, 0.33739406, 1, 0.37818182, 0.37818182, 0.37818182, 1, 0.68, 0.68, 0.68, 1, 0.2738731, 0.27387267, 0.27387258, 1, 0.85002744, 0.84215486, 0.8767707, 1)
+
+[sub_resource type="GradientTexture2D" id="GradientTexture2D_y2dek"]
+gradient = SubResource("Gradient_yw3xw")
+width = 8
+height = 8
+fill = 1
+fill_from = Vector2(0.5, 0.5)
+
+[sub_resource type="Gradient" id="Gradient_6gvyl"]
+offsets = PackedFloat32Array(0, 0.45, 0.75, 1)
+colors = PackedColorArray(0.82, 0.72, 0.55, 0.95, 0.68, 0.58, 0.42, 0.75, 0.45, 0.38, 0.3, 0.35, 0.32, 0.27, 0.22, 0)
+
+[sub_resource type="GradientTexture1D" id="GradientTexture1D_yw3xw"]
+gradient = SubResource("Gradient_6gvyl")
+
+[sub_resource type="Curve" id="Curve_land_dust"]
+_data = [Vector2(0, 1), 0.0, -0.8, 0, 0, Vector2(1, 0.15), -0.8, 0.0, 0, 0]
+point_count = 2
+
+[sub_resource type="CurveTexture" id="CurveTexture_land_dust"]
+curve = SubResource("Curve_land_dust")
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_6gvyl"]
+lifetime_randomness = 0.25
+particle_flag_disable_z = true
+emission_shape_scale = Vector3(25, 1, 1)
+emission_shape = 3
+emission_box_extents = Vector3(1, 1, 1)
+direction = Vector3(0, -1, 0)
+spread = 90.0
+initial_velocity_min = 40.0
+initial_velocity_max = 120.0
+gravity = Vector3(0, 98, 0)
+scale_min = 0.35
+scale_max = 1.5
+scale_curve = SubResource("CurveTexture_land_dust")
+color_ramp = SubResource("GradientTexture1D_yw3xw")
+
 [node name="Player" type="CharacterBody2D" unique_id=775405784]
 collision_layer = 2
 script = ExtResource("1_player")
@@ -167,3 +208,18 @@ autoplay = "idle_anim"
 position = Vector2(93, -22)
 
 [node name="Camera2D" type="Camera2D" parent="." unique_id=412988208]
+
+[node name="LandGPUParticles2D" type="GPUParticles2D" parent="." unique_id=1709255497]
+z_index = -1
+position = Vector2(0, 103)
+emitting = false
+amount = 20
+texture = SubResource("GradientTexture2D_y2dek")
+lifetime = 0.25
+one_shot = true
+explosiveness = 1.0
+local_coords = false
+process_material = SubResource("ParticleProcessMaterial_6gvyl")
+
+[node name="ParticlePos" type="Marker2D" parent="." unique_id=932715445]
+position = Vector2(0, 103)

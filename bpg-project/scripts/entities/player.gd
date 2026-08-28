@@ -11,6 +11,10 @@ const LAND_HOLD: float = 0.2
 const COYOTE_TIME: float = 0.10
 ## How long a jump press is remembered before landing.
 const JUMP_BUFFER_TIME: float = 0.10
+## Fall speed below this skips land dust entirely.
+const LAND_DUST_MIN_FALL: float = 180.0
+## Fall speed at which land dust reaches full strength.
+const LAND_DUST_MAX_FALL: float = 850.0
 @export var facing_right: bool = true
 #endregion
 
@@ -18,6 +22,9 @@ const JUMP_BUFFER_TIME: float = 0.10
 #region Node refs
 @onready var sprite: AnimatedSprite2D = $AnimatedSprite2D
 @onready var muzzle: Marker2D = $Muzzle
+@onready var land_dust_spawn: Marker2D = $ParticlePos
+@onready var land_dust_particles: GPUParticles2D = $LandGPUParticles2D
+@onready var camera: Camera2D = $Camera2D
 #endregion
 
 
@@ -42,12 +49,17 @@ var _coyote_timer: float = 0.0
 var _jump_buffer_timer: float = 0.0
 var kinetum_jump_mult: float = 1.0
 const JUMP_CUT_MULT: float = 0.5
+var _fastest_fall_speed_while_airborne: float = 0.0
+var _land_dust_material: ParticleProcessMaterial
+var _remaining_camera_shake: float = 0.0
 #endregion
 
 
 #region Lifecycle
 func _ready() -> void:
 	_muzzle_offset = muzzle.position
+	_land_dust_material = land_dust_particles.process_material.duplicate() as ParticleProcessMaterial
+	land_dust_particles.process_material = _land_dust_material
 	_apply_facing()
 
 
@@ -61,8 +73,11 @@ func _physics_process(delta: float) -> void:
 	_apply_horizontal_move()
 	_try_fire()
 
+	if not was_on_floor:
+		_fastest_fall_speed_while_airborne = maxf(_fastest_fall_speed_while_airborne, velocity.y)
 
 	move_and_slide()
+	_update_camera_shake(delta)
 	_update_anims(delta)
 #endregion
 
@@ -91,8 +106,8 @@ func _apply_gravity_and_jump(delta: float) -> void:
 
 
 func _perform_jump() -> void:
-	var kinetum_t := clampf(inverse_lerp(base_speed, Kinetum.max_speed, speed), 0.0, 1.0)
-	kinetum_jump_mult = lerpf(1.0, max_kinetum_jump_mult, sqrt(kinetum_t))
+	var speed_ratio_of_max_kinetum := clampf(inverse_lerp(base_speed, Kinetum.max_speed, speed), 0.0, 1.0)
+	kinetum_jump_mult = lerpf(1.0, max_kinetum_jump_mult, sqrt(speed_ratio_of_max_kinetum))
 	velocity.y = JUMP_VELOCITY * kinetum_jump_mult
 	_landing = false
 	_coyote_timer = 0.0
@@ -132,6 +147,54 @@ func _apply_facing() -> void:
 #endregion
 
 
+#region VFX
+func _play_land_dust(fastest_fall_speed: float) -> void:
+	if fastest_fall_speed < LAND_DUST_MIN_FALL:
+		return
+
+	var landing_hardness_ratio := clampf(
+		inverse_lerp(LAND_DUST_MIN_FALL, LAND_DUST_MAX_FALL, fastest_fall_speed), 0.0, 1.0
+	)
+	var speed_ratio_of_max_kinetum := clampf(inverse_lerp(base_speed, Kinetum.max_speed, speed), 0.0, 1.0)
+	var land_dust_strength := clampf(
+		landing_hardness_ratio * lerpf(0.75, 1.0, speed_ratio_of_max_kinetum), 0.0, 1.0
+	)
+
+	land_dust_particles.position = land_dust_spawn.position
+	land_dust_particles.amount = int(lerpf(6.0, 22.0, land_dust_strength))
+	_land_dust_material.spread = lerpf(55.0, 95.0, land_dust_strength)
+	_land_dust_material.initial_velocity_min = lerpf(22.0, 45.0, land_dust_strength)
+	_land_dust_material.initial_velocity_max = lerpf(65.0, 150.0, land_dust_strength)
+	_land_dust_material.scale_max = lerpf(0.9, 1.8, land_dust_strength)
+
+	var horizontal_movement_ratio := clampf(absf(velocity.x) / maxf(speed, 1.0), 0.0, 1.0)
+	_land_dust_material.emission_shape_scale.x = lerpf(16.0, 34.0, horizontal_movement_ratio)
+
+	var dust_horizontal_drift := 0.0
+	if absf(velocity.x) > 10.0:
+		dust_horizontal_drift = signf(velocity.x) * lerpf(0.15, 0.45, horizontal_movement_ratio)
+	_land_dust_material.direction = Vector3(dust_horizontal_drift, -1.0, 0.0).normalized()
+
+	land_dust_particles.restart()
+
+	if land_dust_strength > 0.65:
+		_remaining_camera_shake = lerpf(1.5, 4.5, land_dust_strength)
+
+
+func _update_camera_shake(delta: float) -> void:
+	if _remaining_camera_shake <= 0.0:
+		camera.offset = Vector2.ZERO
+		return
+
+	_remaining_camera_shake = maxf(_remaining_camera_shake - delta * 18.0, 0.0)
+	var camera_shake_offset := _remaining_camera_shake * 0.35
+	camera.offset = Vector2(
+		randf_range(-camera_shake_offset, camera_shake_offset),
+		randf_range(-camera_shake_offset, camera_shake_offset)
+	)
+#endregion
+
+
 #region Animation
 func _update_anims(delta: float) -> void:
 	# Just landed this frame.
@@ -140,6 +203,9 @@ func _update_anims(delta: float) -> void:
 		can_shoot = false
 		_land_timer = LAND_HOLD
 		_set_anim(&"land_anim")
+		_play_land_dust(_fastest_fall_speed_while_airborne)
+		_fastest_fall_speed_while_airborne = 0.0
+		
 
 	if _landing:
 		# Cancel land early: left the floor, or started walking.
