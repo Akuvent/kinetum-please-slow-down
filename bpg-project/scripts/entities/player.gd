@@ -41,6 +41,7 @@ var _land_timer: float = 0.0
 var _coyote_timer: float = 0.0
 var _jump_buffer_timer: float = 0.0
 var kinetum_jump_mult: float = 1.0
+const JUMP_CUT_MULT: float = 0.5
 #endregion
 
 
@@ -59,6 +60,7 @@ func _physics_process(delta: float) -> void:
 	_apply_gravity_and_jump(delta)
 	_apply_horizontal_move()
 	_try_fire()
+
 
 	move_and_slide()
 	_update_anims(delta)
@@ -80,7 +82,8 @@ func _update_jump_timers(delta: float) -> void:
 func _apply_gravity_and_jump(delta: float) -> void:
 	if not was_on_floor:
 		velocity += get_gravity() * delta
-
+	if Input.is_action_just_released("move_up") and velocity.y < 0:
+		velocity.y *= JUMP_CUT_MULT
 	var can_jump := is_on_floor() or _coyote_timer > 0.0
 	var wants_jump := _jump_buffer_timer > 0.0
 	if can_jump and wants_jump:
