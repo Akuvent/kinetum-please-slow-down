@@ -7,6 +7,10 @@ var bullet_scene: PackedScene = preload("res://scenes/entities/bullet.tscn")
 const JUMP_VELOCITY: float = -600.0
 ## How long to hold the land pose (seconds). Bump if it still feels snappy.
 const LAND_HOLD: float = 0.2
+## Grace period after leaving a platform where jump still works.
+const COYOTE_TIME: float = 0.10
+## How long a jump press is remembered before landing.
+const JUMP_BUFFER_TIME: float = 0.10
 @export var facing_right: bool = true
 #endregion
 
@@ -23,6 +27,7 @@ var bullet = bullet_scene.instantiate()
 ## Matches bullet speed while the shot is airborne; floor of 50.
 var speed: float = 100
 var base_speed: float = 100 # for jump mult
+var max_kinetum_jump_mult: float = 1.5
 ## Editor position is for facing right; X is mirrored when facing left.
 var _muzzle_offset: Vector2 = Vector2.ZERO
 ## False during the land pose so fire doesn't interrupt it.
@@ -33,8 +38,9 @@ var bullet_left: bool = true
 var was_on_floor: bool = true
 var _landing: bool = false
 var _land_timer: float = 0.0
-var kinetum_jump_mult: float = 1
-var max_kinetum_jump_mult: float = 1.5
+var _coyote_timer: float = 0.0
+var _jump_buffer_timer: float = 0.0
+var kinetum_jump_mult: float = 1.0
 #endregion
 
 
@@ -45,11 +51,11 @@ func _ready() -> void:
 
 
 func _physics_process(delta: float) -> void:
-	# Sample floor before we change velocity / slide; landing uses this later.
 	was_on_floor = is_on_floor()
 	if not bullet_left:
 		speed = maxf(bullet.speed, 50)
 
+	_update_jump_timers(delta)
 	_apply_gravity_and_jump(delta)
 	_apply_horizontal_move()
 	_try_fire()
@@ -60,15 +66,34 @@ func _physics_process(delta: float) -> void:
 
 
 #region Movement
+func _update_jump_timers(delta: float) -> void:
+	if is_on_floor():
+		_coyote_timer = COYOTE_TIME
+	else:
+		_coyote_timer = maxf(_coyote_timer - delta, 0.0)
+
+	_jump_buffer_timer = maxf(_jump_buffer_timer - delta, 0.0)
+	if Input.is_action_just_pressed("move_up"):
+		_jump_buffer_timer = JUMP_BUFFER_TIME
+
+
 func _apply_gravity_and_jump(delta: float) -> void:
 	if not was_on_floor:
 		velocity += get_gravity() * delta
 
-	if Input.is_action_just_pressed("move_up") and was_on_floor:
-		var kinetum_t := clampf(inverse_lerp(base_speed, Kinetum.max_speed, speed), 0.0, 1.0)
-		kinetum_jump_mult = lerpf(1.0, max_kinetum_jump_mult, sqrt(kinetum_t))
-		velocity.y = JUMP_VELOCITY * kinetum_jump_mult
-		_landing = false
+	var can_jump := is_on_floor() or _coyote_timer > 0.0
+	var wants_jump := _jump_buffer_timer > 0.0
+	if can_jump and wants_jump:
+		_perform_jump()
+
+
+func _perform_jump() -> void:
+	var kinetum_t := clampf(inverse_lerp(base_speed, Kinetum.max_speed, speed), 0.0, 1.0)
+	kinetum_jump_mult = lerpf(1.0, max_kinetum_jump_mult, sqrt(kinetum_t))
+	velocity.y = JUMP_VELOCITY * kinetum_jump_mult
+	_landing = false
+	_coyote_timer = 0.0
+	_jump_buffer_timer = 0.0
 
 
 func _apply_horizontal_move() -> void:
