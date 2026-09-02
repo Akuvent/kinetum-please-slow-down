@@ -25,19 +25,13 @@ func _process(delta: float) -> void:
 
 	var ratio: float = (displayed_kinetum - 200.0) / (2000.0 - 200.0)
 	ratio = clamp(ratio, 0.0, 1.0)
-	fill.self_modulate = gradient.sample(ratio)
+	var scroll_speed := lerpf(min_scroll_speed, max_scroll_speed, ratio)
 	if fill_material:
 		fill_material.set_shader_parameter("progress", ratio)
+		fill_material.set_shader_parameter("tint", gradient.sample(ratio))
+		fill_material.set_shader_parameter("scroll_speed", scroll_speed)
 	if dash_material:
-		dash_material.set_shader_parameter(
-			"scroll_speed",
-			lerpf(min_scroll_speed, max_scroll_speed, ratio)
-		)
-	if fill_material:
-		fill_material.set_shader_parameter(
-			"scroll_speed",
-			lerpf(min_scroll_speed, max_scroll_speed, ratio)
-		)
+		dash_material.set_shader_parameter("scroll_speed", scroll_speed)
 	var intensity : float = pow(ratio, 4.0) * 4
 	shake(intensity, delta)
 

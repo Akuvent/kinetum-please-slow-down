@@ -1,10 +1,23 @@
 [gd_scene format=3 uid="uid://cfy4owbgnqptp"]
 
 [ext_resource type="Script" uid="uid://ccixh537ca0ug" path="res://scripts/entities/enemy.gd" id="1_enemy"]
+[ext_resource type="Texture2D" uid="uid://bjs6ciapfntxr" path="res://assets/sprites/level/PNG/Enemies/enemyWalking_1.png" id="2_67neu"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_ur6hh"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_ur6hh"]
+size = Vector2(32, 44)
+
+[sub_resource type="SpriteFrames" id="SpriteFrames_ur6hh"]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("2_67neu")
+}],
+"loop": 1,
+"name": &"default",
+"speed": 5.0
+}]
 
 [node name="Enemy" type="CharacterBody2D" unique_id=1137368567]
 collision_layer = 8
@@ -20,3 +33,6 @@ collision_mask = 4
 
 [node name="HurtboxCollision" type="CollisionShape2D" parent="Hurtbox" unique_id=1666491537]
 shape = SubResource("RectangleShape2D_ur6hh")
+
+[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="." unique_id=482103582]
+sprite_frames = SubResource("SpriteFrames_ur6hh")

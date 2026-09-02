@@ -8,6 +8,7 @@ enum State { OUTBOUND, RETURN, AWAIT_PARRY, LOOSE }
 @export var parry_window_sec := 0.4
 @export var turn_deg_per_sec := 720.0   # tune: lower = wider arcs
 @export var path_arrive_radius := 50.0
+@export var gradient: Gradient
 #endregion
 
 
@@ -27,6 +28,7 @@ var path_index: int = 0
 var has_los: bool = false
 ## Previous frame's has_los, kept for the "LOS just broke" repath edge trigger.
 var had_los: bool = true
+@onready var body_visual := $Polygon2D
 #endregion
 
 
@@ -38,6 +40,10 @@ func _ready() -> void:
 func _physics_process(delta: float) -> void:
 	Kinetum.set_outbound_active(state == State.OUTBOUND)
 	speed = Kinetum.kinetum
+	var ratio: float = (Kinetum.kinetum - 200.0) / (2000.0 - 200.0)
+	ratio = clamp(ratio, 0.0, 1.0)
+	if ratio:
+		body_visual.color = gradient.sample(ratio)
 	_refresh_pathing_goal()
 	tracking(delta)
 	queue_redraw()
@@ -148,7 +154,9 @@ func _resolve_collision(collision: KinematicCollision2D) -> void:
 		play_vfx()
 		state = State.RETURN
 		path.clear()
-		had_los = true
+		path_index = 0
+		# Force a fresh return path; do not carry outbound LOS into the parry check this frame.
+		had_los = false
 		if is_instance_valid(player):
 			pathing_goal = player.global_position
 			if _has_los_to(pathing_goal):
@@ -181,18 +189,18 @@ func check_parry_window() -> void:
 	if not is_instance_valid(player):
 		return
 	var parry_radius := speed * parry_window_sec * 0.5
-	var dist := global_position.distance_to(player.global_position)
-	# Enter the window once close enough while returning.
-	if state == State.RETURN and dist <= parry_radius and has_los:
+	# Wall-aware distance: straight line when clear, nav path length when blocked.
+	var parry_dist := _parry_distance_to_player()
+	if state == State.RETURN and parry_dist <= parry_radius:
 		state = State.AWAIT_PARRY
-	elif state == State.AWAIT_PARRY and dist > parry_radius:
+	elif state == State.AWAIT_PARRY and parry_dist > parry_radius:
 		state = State.LOOSE
 		path.clear()
 		Kinetum.set_loose(true)
 
 	if Input.is_action_just_pressed("parry"):
-		var in_parry_range := dist <= parry_radius
-		if state == State.AWAIT_PARRY or (state == State.LOOSE and in_parry_range):
+		# Same wall-aware distance for clutch parries on a loose bullet.
+		if state == State.AWAIT_PARRY or (state == State.LOOSE and parry_dist <= parry_radius):
 			_do_parry()
 
 
@@ -211,6 +219,36 @@ func _do_parry() -> void:
 
 
 #region Pathfinding
+## How far the bullet is from the player for parry window enter / exit.
+## Open air: straight-line pixels. Behind a wall: sum of A* segments (cannot clip through tiles).
+func _parry_distance_to_player() -> float:
+	if not is_instance_valid(player):
+		return INF
+	var goal := player.global_position
+	# Ray is checked fresh here, not the cached has_los from the start of the frame.
+	if _has_los_to(goal):
+		return global_position.distance_to(goal)
+	return _nav_path_length(global_position, goal)
+
+
+## Total walkable distance between two world points on the shared level grid.
+## Returns INF when no route exists (out of bounds or blocked).
+func _nav_path_length(from: Vector2, to: Vector2) -> float:
+	if Game.astar_grid == null:
+		return INF
+	var from_cell: Vector2i = Game.world_to_cell(from)
+	var to_cell: Vector2i = Game.world_to_cell(to)
+	if not Game.astar_grid.is_in_boundsv(from_cell) or not Game.astar_grid.is_in_boundsv(to_cell):
+		return INF
+	var astar_path: PackedVector2Array = Game.astar_grid.get_point_path(from_cell, to_cell)
+	if astar_path.size() < 2:
+		return INF
+	var total: float = 0.0
+	for i in range(1, astar_path.size()):
+		total += astar_path[i - 1].distance_to(astar_path[i])
+	return total
+
+
 ## Takes a Vector2 rather than a node so waypoints can be tested too.
 func _has_los_to(target: Vector2) -> bool:
 	var space := get_world_2d().direct_space_state

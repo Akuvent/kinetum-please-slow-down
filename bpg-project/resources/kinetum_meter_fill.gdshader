@@ -3,6 +3,7 @@ shader_type canvas_item;
 uniform float progress : hint_range(0.0, 1.0) = 0.0;
 // Horizontal UV shift from top to bottom; match separator parallelogram slant (8px / 480px).
 uniform float fill_skew : hint_range(0.0, 0.1) = 0.0167;
+uniform vec4 tint : source_color = vec4(1.0);
 uniform float scroll_speed : hint_range(0.0, 4.0) = 0.50;
 uniform float cell_size : hint_range(4.0, 80.0) = 14.0;
 uniform float dash_length : hint_range(0.02, 0.4) = 0.36;
@@ -66,5 +67,6 @@ void fragment() {
 
 	vec4 dash_color = vec4(base.rgb * darken, base.a);
 	COLOR = mix(base, dash_color, dash_mask);
+	COLOR.rgb *= tint.rgb;
 	COLOR.a *= fill_mask;
 }

@@ -2,6 +2,12 @@
 
 [ext_resource type="Script" uid="uid://6kwnbjoxaqk3" path="res://scripts/entities/bullet.gd" id="1_bullet"]
 
+[sub_resource type="Gradient" id="Gradient_ma0cl"]
+offsets = PackedFloat32Array(0, 0.33333334, 0.6666667, 1)
+colors = PackedColorArray(0.28, 0.28, 0.28, 1, 1, 0.31199998, 0.04000002, 1, 1.0372378, 0, 0, 1, 1, 1, 1, 1)
+metadata/_snap_count = 3
+metadata/_snap_enabled = true
+
 [sub_resource type="CapsuleShape2D" id="CapsuleShape2D_ur6hh"]
 radius = 4.0
 height = 8.0
@@ -11,6 +17,7 @@ collision_layer = 4
 collision_mask = 9
 motion_mode = 1
 script = ExtResource("1_bullet")
+gradient = SubResource("Gradient_ma0cl")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1738052205]
 shape = SubResource("CapsuleShape2D_ur6hh")
