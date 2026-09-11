@@ -21,6 +21,7 @@ config/icon="res://icon.svg"
 
 Game="*res://autoload/game.gd"
 Kinetum="*res://autoload/kinetum.gd"
+DevCheats="*res://autoload/dev_cheats.gd"
 
 [display]
 

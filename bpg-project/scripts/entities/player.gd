@@ -52,21 +52,37 @@ const JUMP_CUT_MULT: float = 0.5
 var _fastest_fall_speed_while_airborne: float = 0.0
 var _land_dust_material: ParticleProcessMaterial
 var _remaining_camera_shake: float = 0.0
+## World mask to restore when noclip turns off.
+var _world_collision_mask: int = 1
+## Local copy of DevCheats.noclip so we only retune collision on change.
+var _noclip_on: bool = false
 #endregion
 
 
 #region Lifecycle
 func _ready() -> void:
 	_muzzle_offset = muzzle.position
+	_world_collision_mask = collision_mask
 	_land_dust_material = land_dust_particles.process_material.duplicate() as ParticleProcessMaterial
 	land_dust_particles.process_material = _land_dust_material
 	_apply_facing()
+	_sync_noclip()
 
 
 func _physics_process(delta: float) -> void:
+	_sync_noclip()
 	was_on_floor = is_on_floor()
 	if not bullet_left:
 		speed = maxf(bullet.speed, 50)
+
+	if _noclip_on:
+		# Skip gravity and jump. Fly in all four directions instead.
+		_apply_noclip_move()
+		_try_fire()
+		move_and_slide()
+		_update_camera_shake(delta)
+		_update_anims(delta)
+		return
 
 	_update_jump_timers(delta)
 	_apply_gravity_and_jump(delta)
@@ -123,6 +139,31 @@ func _apply_horizontal_move() -> void:
 		_apply_facing()
 	else:
 		velocity.x = move_toward(velocity.x, 0, speed)
+
+
+func _sync_noclip() -> void:
+	if DevCheats.noclip == _noclip_on:
+		return
+	_noclip_on = DevCheats.noclip
+	# Mask 0 = ignore world tiles. Shape stays on so we can restore cleanly.
+	collision_mask = 0 if _noclip_on else _world_collision_mask
+	if _noclip_on:
+		velocity = Vector2.ZERO
+
+
+func _apply_noclip_move() -> void:
+	var move := Vector2(
+		Input.get_axis("move_left", "move_right"),
+		Input.get_axis("move_up", "move_down")
+	)
+	if move.length_squared() > 1.0:
+		move = move.normalized()
+	var fly := speed * 1.5 if Input.is_action_pressed("run") else speed
+	# 1.5x on top of run so flying a level is faster than walking it.
+	velocity = move * fly * 1.5
+	if move.x != 0.0:
+		facing_right = move.x > 0.0
+		_apply_facing()
 #endregion
 
 
